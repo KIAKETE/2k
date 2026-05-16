@@ -6,6 +6,49 @@ import { requireAuth, getCurrentUserId } from './auth.js';
 
 export function registerRoutes(app: Express) {
   // ─────────────────────────────────────
+  // Reference data
+  // ─────────────────────────────────────
+  app.get('/api/brokers',    async (_req, res) => res.json(await storage.getAllBrokers()));
+  app.get('/api/order-book', async (_req, res) => res.json(await storage.getAllOrderBook()));
+  app.get('/api/assets',     async (_req, res) => res.json(await storage.getAllAssets()));
+
+  // ─────────────────────────────────────
+  // Portfolio
+  // ─────────────────────────────────────
+  app.get('/api/portfolio', requireAuth, async (req, res) => {
+    const userId = getCurrentUserId(req);
+    res.json(await storage.getPortfolio(userId));
+  });
+
+  app.post('/api/portfolio', requireAuth, async (req, res) => {
+    const userId = getCurrentUserId(req);
+    try {
+      const holding = await storage.createPortfolioHolding({ ...req.body, userId });
+      res.status(201).json(holding);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/portfolio/:id', requireAuth, async (req, res) => {
+    try {
+      const holding = await storage.updatePortfolioHolding(req.params.id, req.body);
+      if (!holding) return res.status(404).json({ error: 'Holding não encontrado' });
+      res.json(holding);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ─────────────────────────────────────
+  // Dashboard
+  // ─────────────────────────────────────
+  app.get('/api/dashboard/summary', requireAuth, async (req, res) => {
+    const userId = getCurrentUserId(req);
+    res.json(await storage.getDashboardSummary(userId));
+  });
+
+  // ─────────────────────────────────────
   // GET /api/simulations
   // ─────────────────────────────────────
   app.get('/api/simulations', requireAuth, async (req: Request, res: Response) => {
@@ -32,6 +75,7 @@ export function registerRoutes(app: Express) {
 
       res.json(enrichedSimulations);
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: 'Failed to fetch simulations' });
     }
   });
@@ -60,8 +104,9 @@ export function registerRoutes(app: Express) {
       }
 
       res.status(201).json(simulation);
-    } catch (error) {
-      res.status(400).json({ error: 'Invalid simulation data' });
+    } catch (error: any) {
+      console.error(error);
+      res.status(400).json({ error: error.message || 'Invalid simulation data' });
     }
   });
 
